@@ -81,7 +81,7 @@ const ChatBot = () => {
   return (
     <div className="fixed bottom-6 right-6 w-96 h-[500px] bg-white rounded-lg shadow-xl flex flex-col z-50">
       {/* Header */}
-      <div className="bg-blue-600 text-white p-4 rounded-t-lg flex justify-between items-center">
+      <div className="bg-blue-600 text-white p-4 shadow-lg rounded-t-lg flex justify-between items-center">
         <div className="flex items-center">
           <FaRobot className="text-xl mr-2" />
           <h3 className="font-medium">ML Analytics Assistant</h3>

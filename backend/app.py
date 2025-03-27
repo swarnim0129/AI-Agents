@@ -14,8 +14,11 @@ from visualization_service import VisualizationService
 from insights_service import generate_full_insights
 import google.generativeai as genai
 from chat_service import ChatService
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 
 app = Flask(__name__)
+CORS(app)
 
 # Update the CORS configuration at the top of your file
 CORS(app, 
@@ -67,6 +70,181 @@ except Exception as e:
 
 # Initialize chat service
 chat_service = ChatService()
+
+class DataProcessor:
+    def __init__(self):
+        self.df = None
+        self.original_df = None
+        self.cleaning_stats = None
+
+    def set_data(self, data):
+        """Initialize or update the dataframe"""
+        try:
+            self.df = pd.DataFrame(data)
+            if self.original_df is None:
+                self.original_df = self.df.copy()
+        except Exception as e:
+            print(f"Error setting data: {str(e)}")
+            raise
+
+    def clean_data(self):
+        """Enhanced data cleaning with statistics"""
+        try:
+            if self.df is None:
+                return False
+
+            # Store initial row count
+            initial_rows = len(self.df)
+
+            # Store original column names
+            original_columns = self.df.columns.tolist()
+
+            # 1. Remove duplicates
+            self.df = self.df.drop_duplicates(keep='first').reset_index(drop=True)
+
+            # 2. Clean column names
+            self.df.columns = [str(col).strip().lower().replace(' ', '_') for col in self.df.columns]
+
+            # 3. Clean and standardize data types
+            for col in self.df.columns:
+                # Try to convert to numeric
+                try:
+                    # Check if column contains numeric data
+                    numeric_mask = pd.to_numeric(self.df[col], errors='coerce').notna()
+                    if numeric_mask.sum() > 0.5 * len(self.df):  # If more than 50% are numbers
+                        self.df[col] = pd.to_numeric(self.df[col], errors='coerce')
+                        # Round floats to 2 decimal places
+                        if self.df[col].dtype in ['float64', 'float32']:
+                            self.df[col] = self.df[col].round(2)
+                except:
+                    # If conversion fails, clean string data
+                    if self.df[col].dtype == 'object':
+                        self.df[col] = self.df[col].astype(str).str.strip()
+                        self.df[col] = self.df[col].replace('', np.nan)
+                        self.df[col] = self.df[col].str.capitalize()
+
+            # 4. Remove rows where all values are NaN
+            self.df = self.df.dropna(how='all').reset_index(drop=True)
+
+            # 5. Sort by first numeric column if exists
+            numeric_cols = self.df.select_dtypes(include=[np.number]).columns
+            if len(numeric_cols) > 0:
+                self.df = self.df.sort_values(by=numeric_cols[0]).reset_index(drop=True)
+
+            # Calculate statistics
+            final_rows = len(self.df)
+            duplicates_removed = initial_rows - final_rows
+
+            self.cleaning_stats = {
+                'initial_rows': initial_rows,
+                'final_rows': final_rows,
+                'duplicates_removed': duplicates_removed
+            }
+
+            print("Data cleaning completed successfully")  # Debug log
+            return True
+
+        except Exception as e:
+            print(f"Error in clean_data: {str(e)}")
+            return False
+
+    def handle_missing_values(self, columns=None, method='mean'):
+        """Handle missing values with specified method"""
+        try:
+            if not columns:
+                return False
+
+            for col in columns:
+                if col not in self.df.columns:
+                    continue
+
+                # Check if column is numeric
+                is_numeric = pd.to_numeric(self.df[col], errors='coerce').notna().any()
+
+                if is_numeric:
+                    # Convert to numeric and handle missing values
+                    self.df[col] = pd.to_numeric(self.df[col], errors='coerce')
+                    if method == 'mean':
+                        fill_value = self.df[col].mean()
+                    elif method == 'median':
+                        fill_value = self.df[col].median()
+                    else:
+                        fill_value = self.df[col].mode().iloc[0] if not self.df[col].mode().empty else 0
+                    
+                    # Round fill value for cleaner numbers
+                    if isinstance(fill_value, (float, np.float64)):
+                        fill_value = round(fill_value, 2)
+                else:
+                    # Handle categorical missing values
+                    fill_value = self.df[col].mode().iloc[0] if not self.df[col].mode().empty else 'Unknown'
+
+                self.df[col] = self.df[col].fillna(fill_value)
+
+            return True
+        except Exception as e:
+            print(f"Error in handle_missing_values: {str(e)}")
+            return False
+
+    def remove_columns(self, columns):
+        """Remove specified columns"""
+        try:
+            self.df = self.df.drop(columns=columns)
+            return True
+        except Exception as e:
+            print(f"Error in remove_columns: {str(e)}")
+            return False
+
+    def scale_features(self, columns):
+        """Scale numeric features"""
+        try:
+            if not columns:
+                return False
+
+            for col in columns:
+                if col in self.df.columns:
+                    # Convert to numeric and scale
+                    self.df[col] = pd.to_numeric(self.df[col], errors='coerce')
+                    scaled_values = self.scaler.fit_transform(self.df[[col]])
+                    self.df[col] = scaled_values.round(2)
+
+            return True
+        except Exception as e:
+            print(f"Error in scale_features: {str(e)}")
+            return False
+
+    def encode_categorical(self, columns):
+        """Encode categorical variables"""
+        try:
+            if not columns:
+                return False
+
+            for col in columns:
+                if col in self.df.columns:
+                    # Fill NaN values before encoding
+                    self.df[col] = self.df[col].fillna('Unknown')
+                    # Create dummy variables
+                    dummies = pd.get_dummies(self.df[col], prefix=col)
+                    # Add dummy columns to dataframe
+                    self.df = pd.concat([self.df, dummies], axis=1)
+                    # Remove original column
+                    self.df = self.df.drop(columns=[col])
+
+            return True
+        except Exception as e:
+            print(f"Error in encode_categorical: {str(e)}")
+            return False
+
+    def reset_data(self):
+        """Reset to original data"""
+        try:
+            self.df = self.original_df.copy()
+            return True
+        except Exception as e:
+            print(f"Error in reset_data: {str(e)}")
+            return False
+
+# Initialize processor
+data_processor = DataProcessor()
 
 # Add a root route for testing
 @app.route('/')
@@ -129,37 +307,88 @@ def upload_file():
         return response, 500
 
 # Data processing route
-@app.route('/api/process', methods=['POST', 'OPTIONS'])
+@app.route('/api/eda/process-data', methods=['POST'])
 def process_data():
-    if request.method == 'OPTIONS':
-        response = make_response()
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
-        response.headers.add('Access-Control-Allow-Methods', 'POST')
-        return response, 200
-
     try:
-        global current_df
-        if current_df is None:
-            return jsonify({'error': 'No data available'}), 400
-
         data = request.json
-        selected_columns = data.get('selectedColumns', [])
-        clean_data = data.get('cleanData', False)
-        
-        # For viewing selected columns (without cleaning)
-        df_view = current_df[selected_columns].copy()
-        processed_data = df_view.head(1000).to_dict('records')
-        
-        return jsonify({
-            'message': 'Data processed successfully',
-            'data': processed_data,
-            'columns': selected_columns
-        })
+        if not data:
+            return jsonify({
+                'status': 'error',
+                'message': 'No data provided'
+            }), 400
+
+        action = data.get('action')
+        input_data = data.get('data')
+
+        if not input_data:
+            return jsonify({
+                'status': 'error',
+                'message': 'No input data provided'
+            }), 400
+
+        # Initialize processor with data
+        data_processor = DataProcessor()
+        data_processor.set_data(input_data)
+
+        success = False
+        message = "Operation failed"
+
+        if action == 'clean':
+            print("Starting data cleaning...")  # Debug log
+            success = data_processor.clean_data()
+            message = "Data cleaned successfully" if success else "Failed to clean data"
+            # Include cleaning statistics in response
+            if success:
+                response_data = {
+                    'status': 'success',
+                    'message': message,
+                    'data': data_processor.df.to_dict('records'),
+                    'columns': data_processor.df.columns.tolist(),
+                    'info': {
+                        'rows': len(data_processor.df),
+                        'columns': len(data_processor.df.columns),
+                        'missing_values': data_processor.df.isnull().sum().to_dict(),
+                        'cleaning_stats': data_processor.cleaning_stats
+                    }
+                }
+                return jsonify(response_data)
+        elif action == 'handle_missing':
+            columns = data.get('columns', [])
+            method = data.get('method', 'mean')
+            success = data_processor.handle_missing_values(columns=columns, method=method)
+            message = "Missing values handled successfully" if success else "Failed to handle missing values"
+        elif action == 'remove_columns':
+            columns = data.get('columns', [])
+            success = data_processor.remove_columns(columns)
+            message = "Columns removed successfully" if success else "Failed to remove columns"
+        elif action == 'reset':
+            success = data_processor.reset_data()
+            message = "Data reset successfully" if success else "Failed to reset data"
+
+        if success:
+            return jsonify({
+                'status': 'success',
+                'message': message,
+                'data': data_processor.df.to_dict('records'),
+                'columns': data_processor.df.columns.tolist(),
+                'info': {
+                    'rows': len(data_processor.df),
+                    'columns': len(data_processor.df.columns),
+                    'missing_values': data_processor.df.isnull().sum().to_dict()
+                }
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': message
+            }), 400
 
     except Exception as e:
-        print(f"Error processing data: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        print(f"Error in process_data: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
 
 @app.route('/api/download', methods=['POST', 'OPTIONS'])
 def download_data():
