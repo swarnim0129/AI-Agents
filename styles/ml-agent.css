@@ -1,0 +1,23 @@
+/* Add to your existing styles */
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.prediction-input button {
+  transition: all 0.2s;
+}
+
+.prediction-input button:hover {
+  background-color: #424242;
+}
+
+.prediction-input button:active {
+  transform: scale(0.95);
+} 

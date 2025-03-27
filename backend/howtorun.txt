@@ -1,0 +1,44 @@
+first use command 
+
+npm i        to initialize
+
+then one by one install
+
+npm install @mui/material @emotion/react @emotion/styled    
+npm install @mui/icons-material                            
+npm install tailwindcss postcss autoprefixer               
+npm install recharts                                      
+npm install plotly.js-dist                                
+npm install react-plotly.js                               
+npm install axios                                         
+npm install react-query                                   
+
+# UI Components & Styling
+npm install react-icons                                  
+npm install react-markdown                                
+npm install classnames                                   
+npm install react-toastify                              
+
+npm install react-dropzone                               
+
+npm install react-router-dom                            
+
+npm install @reduxjs/toolkit react-redux                
+npm install zustand                                     
+
+# All in one command
+npm install @mui/material @emotion/react @emotion/styled @mui/icons-material tailwindcss postcss autoprefixer recharts plotly.js-dist react-plotly.js axios react-query react-icons react-markdown classnames react-toastify react-dropzone react-router-dom @reduxjs/toolkit react-redux
+
+
+
+
+
+then first start backend server by running
+
+cd:backend
+python3 app.py or python app.py
+
+then open new terminal without closing previous
+and run 
+
+npm run dev
