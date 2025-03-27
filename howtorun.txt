@@ -32,7 +32,7 @@ npm install @mui/material @emotion/react @emotion/styled @mui/icons-material tai
 
 
 
- ###3note -create a venv and install all the packages 
+ note -create a venv and install all the packages 
 then first start backend server by running
 
 cd:backend
